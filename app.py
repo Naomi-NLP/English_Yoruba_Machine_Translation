@@ -4,7 +4,7 @@ import pandas as pd
 st.set_page_config(layout="wide")
 st.title("📘 English–Yorùbá Glossary Validator")
 
-uploaded_file = st.file_uploader("Upload extracted glossary CSV", type=["csv"])
+uploaded_file = st.file_uploader("hiv_aids_glossary.csv", type=["csv"])
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
