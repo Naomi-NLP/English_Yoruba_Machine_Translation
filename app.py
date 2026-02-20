@@ -12,7 +12,7 @@ ADMIN_PASSWORD = "143admin78"
 # -----------------------------
 # 2️⃣ Load CSV from GitHub once
 # -----------------------------
-GITHUB_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/your_glossary.csv"  # replace with your raw CSV URL
+GITHUB_URL = "https://raw.githubusercontent.com/Naomi-NLP/Validator/refs/heads/main/hiv_aids_glossary.csv"  # replace with your raw CSV URL
 
 if "df" not in st.session_state:
     try:
