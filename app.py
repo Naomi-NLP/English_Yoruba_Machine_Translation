@@ -1,85 +1,91 @@
 import streamlit as st
 import pandas as pd
+import os
 
 st.set_page_config(layout="wide")
 st.title("📘 English–Yorùbá Glossary Validator")
 
 # -----------------------------
-# 1️⃣ Admin password (for download)
+# Config
 # -----------------------------
 ADMIN_PASSWORD = "143admin78"
+GITHUB_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/your_glossary.csv"
+WORKING_FILE = "validated_glossary.csv"  # This is your "new CSV container"
 
 # -----------------------------
-# 2️⃣ Load CSV from GitHub once
+# 1️⃣ Load CSV (from working copy if exists)
 # -----------------------------
-GITHUB_URL = "https://raw.githubusercontent.com/Naomi-NLP/Validator/refs/heads/main/hiv_aids_glossary.csv"  # replace with your raw CSV URL
-
 if "df" not in st.session_state:
-    try:
-        df = pd.read_csv(GITHUB_URL)
-        st.session_state.df = df.copy()
-        st.session_state.index = 0
-        st.success("✅ CSV loaded successfully from GitHub")
-    except Exception as e:
-        st.error(f"Failed to load CSV from GitHub: {e}")
+    if os.path.exists(WORKING_FILE):
+        st.session_state.df = pd.read_csv(WORKING_FILE)
+        st.success(f"✅ Loaded working copy: {WORKING_FILE}")
+    else:
+        try:
+            st.session_state.df = pd.read_csv(GITHUB_URL)
+            st.success("✅ Loaded CSV from GitHub")
+        except Exception as e:
+            st.error(f"Failed to load CSV from GitHub: {e}")
+    st.session_state.index = 0
+
+df = st.session_state.df
+i = st.session_state.index
 
 # -----------------------------
-# 3️⃣ Row-by-row validator
+# 2️⃣ Row-by-row validator
 # -----------------------------
-if "df" in st.session_state:
-    df = st.session_state.df
-    i = st.session_state.index
+st.write(f"### Reviewing entry {i+1} of {len(df)}")
+row = df.iloc[i]
 
-    st.write(f"### Reviewing entry {i+1} of {len(df)}")
-    row = df.iloc[i]
+col1, col2 = st.columns(2)
 
-    col1, col2 = st.columns(2)
+with col1:
+    sn = st.text_input("S/N", row.get("S/N", ""))
+    source = st.text_input("SOURCE", row.get("SOURCE", ""))
+    definition = st.text_area("DEFINITION", row.get("DEFINITION", ""), height=150)
 
-    with col1:
-        sn = st.text_input("S/N", row.get("S/N", ""))
-        source = st.text_input("SOURCE", row.get("SOURCE", ""))
-        definition = st.text_area("DEFINITION", row.get("DEFINITION", ""), height=150)
+with col2:
+    yoruba = st.text_input("YORÙBÁ", row.get("YORÙBÁ", ""))
+    translation = st.text_area("TRANSLATION", row.get("TRANSLATION", ""), height=150)
 
-    with col2:
-        yoruba = st.text_input("YORÙBÁ", row.get("YORÙBÁ", ""))
-        translation = st.text_area("TRANSLATION", row.get("TRANSLATION", ""), height=150)
+# -----------------------------
+# 3️⃣ Save changes instantly
+# -----------------------------
+if st.button("💾 Save Changes"):
+    st.session_state.df.loc[i] = [sn, source, definition, yoruba, translation]
+    # Save immediately to the new CSV container
+    st.session_state.df.to_csv(WORKING_FILE, index=False)
+    st.success(f"Saved ✅ — updated CSV stored in {WORKING_FILE}")
 
-    # -----------------------------
-    # Save changes with form
-    # -----------------------------
-    with st.form(key="edit_form"):
-        submitted = st.form_submit_button("💾 Save Changes")
-        if submitted:
-            st.session_state.df.loc[i] = [sn, source, definition, yoruba, translation]
-            st.success("Saved!")
+# -----------------------------
+# 4️⃣ Navigation
+# -----------------------------
+col_prev, col_next = st.columns(2)
+with col_prev:
+    if st.button("⬅ Previous") and i > 0:
+        st.session_state.index -= 1
+with col_next:
+    if st.button("Next ➡") and i < len(df) - 1:
+        st.session_state.index += 1
 
-    # -----------------------------
-    # Navigation
-    # -----------------------------
-    col_prev, col_next = st.columns(2)
-    with col_prev:
-        if st.button("⬅ Previous") and i > 0:
-            st.session_state.index -= 1
-    with col_next:
-        if st.button("Next ➡") and i < len(df) - 1:
-            st.session_state.index += 1
+st.markdown("---")
 
-    st.markdown("---")
+# -----------------------------
+# 5️⃣ Admin-only download
+# -----------------------------
+st.subheader("🔒 Admin Download")
+password = st.text_input("Enter admin password", type="password")
 
-    # -----------------------------
-    # Admin-only download
-    # -----------------------------
-    st.subheader("🔒 Admin Download")
-    password = st.text_input("Enter admin password", type="password")
-
-    if password == ADMIN_PASSWORD:
-        csv_bytes = st.session_state.df.to_csv(index=False).encode("utf-8")
+if password == ADMIN_PASSWORD:
+    if os.path.exists(WORKING_FILE):
+        csv_bytes = open(WORKING_FILE, "rb").read()
         st.download_button(
-            "📥 Download Cleaned CSV",
+            "📥 Download Validated CSV",
             csv_bytes,
-            "validated_glossary.csv",
+            WORKING_FILE,
             "text/csv"
         )
         st.success("✅ You are authenticated as admin")
-    elif password:
-        st.error("❌ Wrong password")
+    else:
+        st.warning("No validated CSV exists yet.")
+elif password:
+    st.error("❌ Wrong password")
