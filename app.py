@@ -4,10 +4,26 @@ import pandas as pd
 st.set_page_config(layout="wide")
 st.title("📘 English–Yorùbá Glossary Validator")
 
-uploaded_file = st.file_uploader("hiv_aids_glossary.csv", type=["csv"])
+# -----------------------------
+# 1️⃣ Load CSV from GitHub
+# -----------------------------
+github_url = st.text_input(
+    "Enter GitHub CSV Raw URL",
+    "https://raw.githubusercontent.com/<username>/<repo>/main/your_glossary.csv"
+)
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
+df = None
+if github_url:
+    try:
+        df = pd.read_csv(github_url)
+        st.success("CSV loaded successfully from GitHub ✅")
+    except Exception as e:
+        st.error(f"Failed to load CSV: {e}")
+
+# -----------------------------
+# 2️⃣ Main validator
+# -----------------------------
+if df is not None:
 
     if "df" not in st.session_state:
         st.session_state.df = df.copy()
@@ -31,10 +47,12 @@ if uploaded_file:
         yoruba = st.text_input("YORÙBÁ", row.get("YORÙBÁ", ""))
         translation = st.text_area("TRANSLATION", row.get("TRANSLATION", ""), height=150)
 
+    # Save changes
     if st.button("💾 Save Changes"):
         st.session_state.df.loc[i] = [sn, source, definition, yoruba, translation]
         st.success("Saved!")
 
+    # Navigation
     col_prev, col_next = st.columns(2)
     with col_prev:
         if st.button("⬅ Previous") and i > 0:
@@ -44,6 +62,7 @@ if uploaded_file:
             st.session_state.index += 1
 
     st.markdown("---")
+    # Download cleaned CSV
     csv = st.session_state.df.to_csv(index=False).encode("utf-8")
     st.download_button(
         "📥 Download Cleaned CSV",
