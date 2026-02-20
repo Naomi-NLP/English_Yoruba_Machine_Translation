@@ -5,31 +5,28 @@ st.set_page_config(layout="wide")
 st.title("📘 English–Yorùbá Glossary Validator")
 
 # -----------------------------
-# 1️⃣ Load CSV from GitHub
+# 1️⃣ Admin password (for download)
 # -----------------------------
-github_url = st.text_input(
-    "Enter GitHub CSV Raw URL",
-    "https://raw.githubusercontent.com/Naomi-NLP/Validator/refs/heads/main/hiv_aids_glossary.csv"
-)
+ADMIN_PASSWORD = "143admin78"
 
-df = None
-if github_url:
+# -----------------------------
+# 2️⃣ Load CSV from GitHub once
+# -----------------------------
+GITHUB_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/your_glossary.csv"  # replace with your raw CSV URL
+
+if "df" not in st.session_state:
     try:
-        df = pd.read_csv(github_url)
-        st.success("CSV loaded successfully from GitHub ✅")
-    except Exception as e:
-        st.error(f"Failed to load CSV: {e}")
-
-# -----------------------------
-# 2️⃣ Main validator
-# -----------------------------
-if df is not None:
-
-    if "df" not in st.session_state:
+        df = pd.read_csv(GITHUB_URL)
         st.session_state.df = df.copy()
-    if "index" not in st.session_state:
         st.session_state.index = 0
+        st.success("✅ CSV loaded successfully from GitHub")
+    except Exception as e:
+        st.error(f"Failed to load CSV from GitHub: {e}")
 
+# -----------------------------
+# 3️⃣ Row-by-row validator
+# -----------------------------
+if "df" in st.session_state:
     df = st.session_state.df
     i = st.session_state.index
 
@@ -47,12 +44,18 @@ if df is not None:
         yoruba = st.text_input("YORÙBÁ", row.get("YORÙBÁ", ""))
         translation = st.text_area("TRANSLATION", row.get("TRANSLATION", ""), height=150)
 
-    # Save changes
-    if st.button("💾 Save Changes"):
-        st.session_state.df.loc[i] = [sn, source, definition, yoruba, translation]
-        st.success("Saved!")
+    # -----------------------------
+    # Save changes with form
+    # -----------------------------
+    with st.form(key="edit_form"):
+        submitted = st.form_submit_button("💾 Save Changes")
+        if submitted:
+            st.session_state.df.loc[i] = [sn, source, definition, yoruba, translation]
+            st.success("Saved!")
 
+    # -----------------------------
     # Navigation
+    # -----------------------------
     col_prev, col_next = st.columns(2)
     with col_prev:
         if st.button("⬅ Previous") and i > 0:
@@ -62,11 +65,21 @@ if df is not None:
             st.session_state.index += 1
 
     st.markdown("---")
-    # Download cleaned CSV
-    csv = st.session_state.df.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        "📥 Download Cleaned CSV",
-        csv,
-        "validated_glossary.csv",
-        "text/csv"
-    )
+
+    # -----------------------------
+    # Admin-only download
+    # -----------------------------
+    st.subheader("🔒 Admin Download")
+    password = st.text_input("Enter admin password", type="password")
+
+    if password == ADMIN_PASSWORD:
+        csv_bytes = st.session_state.df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "📥 Download Cleaned CSV",
+            csv_bytes,
+            "validated_glossary.csv",
+            "text/csv"
+        )
+        st.success("✅ You are authenticated as admin")
+    elif password:
+        st.error("❌ Wrong password")
