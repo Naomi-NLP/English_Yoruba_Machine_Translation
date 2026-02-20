@@ -7,7 +7,7 @@ import os
 # -----------------------------
 USERNAME = "admin"
 PASSWORD = "143admin78"
-GITHUB_URL = "https://raw.githubusercontent.com/Naomi-NLP/Validator/refs/heads/main/hiv_aids_glossary.csv"  # replace
+GITHUB_URL = "https://raw.githubusercontent.com/Naomi-NLP/Validator/refs/heads/main/hiv_aids_glossary.csv"
 VALIDATED_FILE = "validated_container.csv"
 
 st.set_page_config(layout="wide")
@@ -35,8 +35,10 @@ else:
     # -----------------------------
     # 2️⃣ Load datasets
     # -----------------------------
-    # Original CSV (read-only)
-    original_df = pd.read_csv(GITHUB_URL)
+    if "original_df" not in st.session_state:
+        st.session_state.original_df = pd.read_csv(GITHUB_URL)
+
+    original_df = st.session_state.original_df
 
     # Validated container (new container)
     if os.path.exists(VALIDATED_FILE):
@@ -44,17 +46,28 @@ else:
     else:
         validated_df = pd.DataFrame(columns=original_df.columns)
 
-    # Determine next row to validate
-    validated_indices = validated_df['S/N'].astype(int).tolist()
-    unvalidated_df = original_df[~original_df['S/N'].astype(int).isin(validated_indices)]
-    st.write(f"Rows remaining to validate: {len(unvalidated_df)}")
+    # Store validated_df in session
+    st.session_state.validated_df = validated_df
 
-    if len(unvalidated_df) == 0:
+    # -----------------------------
+    # 3️⃣ Track next row index
+    # -----------------------------
+    if "current_index" not in st.session_state:
+        # Determine first unvalidated row
+        validated_indices = validated_df['S/N'].astype(int).tolist()
+        unvalidated_df = original_df[~original_df['S/N'].astype(int).isin(validated_indices)]
+        if len(unvalidated_df) > 0:
+            st.session_state.current_index = unvalidated_df.index[0]
+        else:
+            st.session_state.current_index = None  # All rows validated
+
+    if st.session_state.current_index is None:
         st.success("🎉 All rows validated!")
     else:
-        # Pick the first unvalidated row
-        row = unvalidated_df.iloc[0]
-        idx = row.name  # original index
+        # -----------------------------
+        # 4️⃣ Show row to validate
+        # -----------------------------
+        row = original_df.loc[st.session_state.current_index]
 
         col1, col2 = st.columns(2)
         with col1:
@@ -66,7 +79,7 @@ else:
             translation = st.text_area("TRANSLATION", row.get("TRANSLATION", ""), height=150)
 
         # -----------------------------
-        # Save validated row
+        # 5️⃣ Save validated row
         # -----------------------------
         if st.button("💾 Save this row"):
             new_row = pd.DataFrame([{
@@ -77,20 +90,52 @@ else:
                 "TRANSLATION": translation
             }])
             # Append to validated container
-            validated_df = pd.concat([validated_df, new_row], ignore_index=True)
-            validated_df.to_csv(VALIDATED_FILE, index=False)
+            st.session_state.validated_df = pd.concat([st.session_state.validated_df, new_row], ignore_index=True)
+            st.session_state.validated_df.to_csv(VALIDATED_FILE, index=False)
             st.success(f"Row {sn} saved to validated container ✅")
-            st.experimental_rerun()  # refresh and load next row
+
+            # -----------------------------
+            # Move to next unvalidated row
+            # -----------------------------
+            validated_indices = st.session_state.validated_df['S/N'].astype(int).tolist()
+            unvalidated_df = original_df[~original_df['S/N'].astype(int).isin(validated_indices)]
+            if len(unvalidated_df) > 0:
+                st.session_state.current_index = unvalidated_df.index[0]
+            else:
+                st.session_state.current_index = None
+                st.success("🎉 All rows validated!")
 
         # -----------------------------
-        # Admin-only download
+        # 6️⃣ Navigation buttons
         # -----------------------------
-        st.subheader("🔒 Admin Download")
-        if st.button("📥 Download Validated Container"):
-            csv_bytes = validated_df.to_csv(index=False).encode("utf-8")
+        col_prev, col_next = st.columns(2)
+        with col_prev:
+            if st.button("⬅ Previous") and st.session_state.current_index is not None:
+                prev_indices = original_df.index[original_df.index < st.session_state.current_index].tolist()
+                if prev_indices:
+                    st.session_state.current_index = prev_indices[-1]
+        with col_next:
+            if st.button("Next ➡") and st.session_state.current_index is not None:
+                next_indices = original_df.index[original_df.index > st.session_state.current_index].tolist()
+                if next_indices:
+                    st.session_state.current_index = next_indices[0]
+
+    # -----------------------------
+    # 7️⃣ Admin-only download
+    # -----------------------------
+    st.subheader("🔒 Admin Download")
+    password = st.text_input("Enter admin password for download", type="password")
+    if password == PASSWORD:
+        if os.path.exists(VALIDATED_FILE):
+            csv_bytes = open(VALIDATED_FILE, "rb").read()
             st.download_button(
-                "Download CSV",
+                "📥 Download Validated Container",
                 csv_bytes,
                 VALIDATED_FILE,
                 "text/csv"
             )
+            st.success("✅ You are authenticated as admin")
+        else:
+            st.warning("No validated CSV exists yet.")
+    elif password:
+        st.error("❌ Wrong password")
